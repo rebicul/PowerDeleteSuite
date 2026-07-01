@@ -1,4 +1,8 @@
-# Power Delete Suite
+# Power Delete Suite Updated
+
+This fork updates Power Delete Suite so the bookmarklet loads this maintained copy
+and the script works with current old.reddit.com modhash handling. The original
+project is [j0be/PowerDeleteSuite](https://github.com/j0be/PowerDeleteSuite).
 
 Why use the Power Delete Suite instead of the other mass reddit deletion scripts?
 
@@ -16,8 +20,16 @@ Why use the Power Delete Suite instead of the other mass reddit deletion scripts
    * If you are both editing AND deleting, it makes sure to edit the comment or self post BEFORE deleting it.
    * Many subreddits have Automoderator configs that could be triggered when you edit, so avoid putting anything unsavory or overly paranoid in your edits
 6. You can do an export of all the content you filter, whether or not you're deleting or editing!
-7. It pulls the latest version from github, so whenever I add new features or fix bugs, you have it instantly!
-8. It was built by /u/j0be, a well known reddit user with a long reddit history and moderates several large subreddits. This means you don't just have to implicitly trust "some random person you can't track down." *\*ahem, reddit overwrite\**
+7. It pulls the latest version from this fork on GitHub, so updates to this maintained copy are picked up by the bookmarklet.
+8. The original script was built by /u/j0be, a well known reddit user with a long reddit history and moderates several large subreddits. This fork keeps that base and updates compatibility with current old.reddit.com behavior.
+
+## Changes in this fork
+
+* Loads `powerdeletesuite.js` from `Vaspyyy/PowerDeleteSuite-updated`.
+* Reads the old.reddit.com modhash from `window.r.config.modhash` first, with safer fallbacks.
+* Sends the modhash as both the `uh` form field and the `X-Modhash` header for edit/delete API calls.
+* Shows the HTTP status and Reddit response text in edit/delete retry dialogs.
+* Stops before destructive actions if Reddit does not expose a modhash for the current page.
 
 ## Screenshots
  
@@ -29,7 +41,7 @@ Click on the name of your browser below to expand the instructions.
 When you get to the step that refers to pasting code, this is the code to copy and paste:
 
 ```
-javascript:(function() { window.bookmarkver = '1.4'; var isReddit = document.location.hostname.split('.').slice(-2).join('.') === 'reddit.com'; var isOverview = !! document.location.href.match(/\/overview\b/i); if (isReddit && isOverview) { var cachBustUrl = 'https://raw.githubusercontent.com/j0be/PowerDeleteSuite/master/powerdeletesuite.js?' + (new Date().getDate()); fetch(cachBustUrl).then(function(response) { return response.text(); }).then(function(data) { var script = document.createElement('script'); script.id = 'pd-script'; script.innerHTML = data; document.getElementsByTagName('head')[0].appendChild(script); }).catch(function() { alert('Error retrieving PowerDeleteSuite from GitHub'); }); } else if (confirm('This script can only be run from your own user profile on Reddit. Would you like to go there now?')) { document.location = 'https://old.reddit.com/user/me/overview'; } else { alert('Please go to your Reddit profile before running this script'); } })();
+javascript:(function(){window.bookmarkver='1.4';var isReddit=document.location.hostname.split('.').slice(-2).join('.')==='reddit.com';var isOverview=!!document.location.href.match(/\/overview\b/i);if(isReddit&&isOverview){var cachBustUrl='https://raw.githubusercontent.com/Vaspyyy/PowerDeleteSuite-updated/master/powerdeletesuite.js?'+Date.now();fetch(cachBustUrl).then(function(response){return response.text();}).then(function(data){var script=document.createElement('script');script.id='pd-script';script.innerHTML=data;document.getElementsByTagName('head')[0].appendChild(script);}).catch(function(){alert('Error retrieving patched PowerDeleteSuite from GitHub');});}else if(confirm('This script can only be run from your own user profile on Reddit. Would you like to go there now?')){document.location='https://old.reddit.com/user/me/overview';}else{alert('Please go to your Reddit profile before running this script');}})();
 ```
 
 <details>
@@ -85,5 +97,5 @@ javascript:(function() { window.bookmarkver = '1.4'; var isReddit = document.loc
  
 ## Bugs / Issues?
  
-Feel free to subscribe to [/r/PowerDeleteSuite/](https://www.reddit.com/r/PowerDeleteSuite/) where I will make a post every time that I make an update to the script!
+For original upstream discussion, see [/r/PowerDeleteSuite/](https://www.reddit.com/r/PowerDeleteSuite/).
  
