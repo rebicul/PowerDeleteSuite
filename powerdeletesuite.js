@@ -294,13 +294,7 @@ var pd = {
   setup: {
     basicSettings: function () {
       pd.config = {
-        uh: $("#config").innerHTML
-          ? $("#config")
-              .innerHTML.replace(/.*?modhash.{1}: .{1}/, "")
-              .replace(/[^a-z0-9].*/, "")
-          : $("#config")[0]
-              .innerHTML.replace(/.*?modhash.{1}: .{1}/, "")
-              .replace(/[^a-z0-9].*/, ""),
+        uh: pd.helpers.modhash(),
         user: $("#header-bottom-right .user a").first().text(),
       };
       pd.endpoints = {
@@ -549,6 +543,50 @@ var pd = {
     },
   },
   helpers: {
+    modhash: function () {
+      if (window.r && window.r.config && window.r.config.modhash) {
+        return window.r.config.modhash;
+      }
+
+      var configEl = $("#config")[0],
+        configText = configEl ? configEl.innerHTML : "";
+
+      if (!configText) {
+        return "";
+      }
+
+      var match = configText.match(/"modhash"\s*:\s*"([^"]*)"/);
+      if (!match) {
+        match = configText.match(/modhash[^a-z0-9]+([a-z0-9]+)/i);
+      }
+
+      return match ? match[1] : "";
+    },
+    apiHeaders: function () {
+      return pd.config.uh ? { "X-Modhash": pd.config.uh } : {};
+    },
+    ajaxErrorMessage: function (jqXHR, textStatus, errorThrown) {
+      var parts = [],
+        responseText =
+          jqXHR && jqXHR.responseText
+            ? $("<div>").html(jqXHR.responseText).text()
+            : "";
+
+      if (jqXHR && jqXHR.status) {
+        parts.push("HTTP " + jqXHR.status);
+      }
+      if (textStatus) {
+        parts.push(textStatus);
+      }
+      if (errorThrown) {
+        parts.push(errorThrown);
+      }
+      if (responseText) {
+        parts.push(responseText.replace(/\s+/g, " ").slice(0, 300));
+      }
+
+      return parts.length ? " (" + parts.join(" - ") + ")" : "";
+    },
     validate: function () {
       if (pd.task.config.isEditing && pd.task.config.editText === "") {
         var confirmEmptyEdit = window.confirm(
@@ -574,6 +612,17 @@ var pd = {
           valid: false,
           reason:
             "There are no actions chosen, so we've got nothing to do. Please select an action.",
+        };
+      } else if (
+        !pd.config.uh &&
+        (pd.task.config.isRemovingPosts ||
+          pd.task.config.isEditing ||
+          pd.task.config.isRemovingComments)
+      ) {
+        return {
+          valid: false,
+          reason:
+            "Reddit did not expose a modhash for this page. Make sure you are logged in on old.reddit.com, reload your overview page, and run Power Delete Suite again.",
         };
       }
       return { valid: true, reason: "valid" };
@@ -877,6 +926,7 @@ var pd = {
           $.ajax({
             url: "/api/del",
             method: "post",
+            headers: pd.helpers.apiHeaders(),
             data: {
               id: item.data.name,
               executed: "deleted",
@@ -888,13 +938,14 @@ var pd = {
               pd.task.items[0].pdDeleted = true;
               pd.actions.children.handleSingle();
             },
-            function () {
+            function (jqXHR, textStatus, errorThrown) {
               pd.task.info.errors++;
               if (
                 confirm(
                   "Error deleting " +
                     (item.kind == "t3" ? "post" : "comment") +
-                    ", would you like to retry?"
+                    pd.helpers.ajaxErrorMessage(jqXHR, textStatus, errorThrown) +
+                    "\n\nWould you like to retry?"
                 )
               ) {
                 pd.actions.children.handleSingle();
@@ -919,7 +970,9 @@ var pd = {
           $.ajax({
             url: "/api/editusertext",
             method: "post",
+            headers: pd.helpers.apiHeaders(),
             data: {
+              api_type: "json",
               thing_id: item.data.name,
               text: editString,
               id: "#form-" + item.data.name,
@@ -932,13 +985,14 @@ var pd = {
               pd.task.items[0].pdEdited = true;
               pd.actions.children.handleSingle();
             },
-            function () {
+            function (jqXHR, textStatus, errorThrown) {
               pd.task.info.errors++;
               if (
                 !confirm(
                   "Error editing " +
                     (item.kind == "t3" ? "post" : "comment") +
-                    ", would you like to retry?"
+                    pd.helpers.ajaxErrorMessage(jqXHR, textStatus, errorThrown) +
+                    "\n\nWould you like to retry?"
                 )
               ) {
                 item.pdEdited = true;
