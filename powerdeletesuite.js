@@ -746,70 +746,106 @@ var pd = {
         return true;
       },
       handle: function () {
-        pd.task.pageCalls++;
-        $.ajax({
-          url: pd.endpoints[pd.task.paths.sections[0]],
-          data: {
-            q:
-              pd.task.paths.sections[0] == "search"
-                ? "author:" +
-                  pd.config.user +
-                  (!pd.task.config.isRemovingPosts &&
-                  !pd.task.config.isExporting
-                    ? " self:1"
-                    : "")
-                : null,
-            after: pd.task.after,
-            sort: pd.task.paths.sorts[0],
-            t: pd.task.paths.timeframes[0],
-          },
-        }).then(
-          function (resp) {
-            if (resp.data) {
-              var children = resp.data.children;
-              pd.task.info.donePages++;
-              if (children.length > 0) {
-                pd.task.info.doneItems = 0;
-                pd.task.info.numItems = children.length;
-                pd.task.items = children;
-                pd.actions.children.handleGroup();
-              } else {
-                pd.task.after = "";
-                pd.actions.page.shift();
-                pd.actions.page.next();
-              }
-            } else {
-              pd.task.info.errors++;
-              if (
-                confirm(
-                  "Reddit seems to be under heavy load. Would you like to continue processing?"
-                )
-              ) {
-                pd.actions.page.shift();
-                pd.actions.page.handle();
-              } else {
-                pd.ui.done();
-              }
-            }
-          },
-          function () {
-            pd.task.info.errors++;
-            if (
-              confirm(
-                "Error getting " +
-                  pd.task.paths.sections[0] +
-                  " page. Would you like to retry?"
-              )
-            ) {
-              pd.actions.page.handle();
-            } else {
-              pd.actions.page.shift();
-              pd.actions.page.next();
-            }
-          }
-        );
+  var now = Date.now();
+  var wait = Math.max(0, (pd.task.nextPageRequest || 0) - now);
+
+  // Keep Reddit listing requests at least 15 seconds apart.
+  pd.task.nextPageRequest = now + wait + 15000;
+
+  setTimeout(function () {
+    pd.task.pageCalls++;
+
+    $.ajax({
+      url: pd.endpoints[pd.task.paths.sections[0]],
+      data: {
+        limit: 100,
+        q:
+          pd.task.paths.sections[0] == "search"
+            ? "author:" +
+              pd.config.user +
+              (!pd.task.config.isRemovingPosts &&
+              !pd.task.config.isExporting
+                ? " self:1"
+                : "")
+            : null,
+        after: pd.task.after,
+        sort: pd.task.paths.sorts[0],
+        t: pd.task.paths.timeframes[0],
       },
-    },
+    }).then(
+      function (resp) {
+        if (resp.data) {
+          var children = resp.data.children;
+          pd.task.info.donePages++;
+
+          if (children.length > 0) {
+            pd.task.info.doneItems = 0;
+            pd.task.info.numItems = children.length;
+            pd.task.items = children;
+            pd.actions.children.handleGroup();
+          } else {
+            pd.task.after = "";
+            pd.actions.page.shift();
+            pd.actions.page.next();
+          }
+        } else {
+          pd.task.info.errors++;
+
+          if (
+            confirm(
+              "Reddit seems to be under heavy load. Would you like to continue processing?"
+            )
+          ) {
+            pd.actions.page.shift();
+            pd.actions.page.handle();
+          } else {
+            pd.ui.done();
+          }
+        }
+      },
+      function (jqXHR) {
+        if (jqXHR && jqXHR.status === 429) {
+          var retryAfter = parseInt(
+            jqXHR.getResponseHeader("Retry-After"),
+            10
+          );
+
+          var delay = Number.isFinite(retryAfter)
+            ? retryAfter * 1000
+            : 60000;
+
+          console.warn(
+            "Reddit rate limit reached; retrying in " +
+              Math.ceil(delay / 1000) +
+              " seconds."
+          );
+
+          setTimeout(function () {
+            pd.actions.page.handle();
+          }, delay);
+
+          return;
+        }
+
+        pd.task.info.errors++;
+
+        if (
+          confirm(
+            "Error getting " +
+              pd.task.paths.sections[0] +
+              " page. Would you like to retry?"
+          )
+        ) {
+          pd.actions.page.handle();
+        } else {
+          pd.actions.page.shift();
+          pd.actions.page.next();
+        }
+      }
+    );
+  }, wait);
+},
+      },
     children: {
       handleGroup: function () {
         pd.ui.updateDisplay();
