@@ -461,8 +461,8 @@ var pd = {
             "#pd__sub-list input" +
               ($("#pd__subreddits").is(":checked") ? ":checked" : "")
           ).map(function () {
-            return $(this).attr("data-sub");
-          }),
+            return pd.helpers.normalizeSubreddit($(this).attr("data-sub"));
+          }).get(),
         },
         score: {
           enabled: $("#pd__score").is(":checked"),
@@ -480,6 +480,20 @@ var pd = {
         saved: $("#pd__saved").is(":checked"),
         mod: $("#pd__mod").is(":checked"),
       };
+      pd.helpers.log("active filters", {
+        subredditFilterEnabled: pd.filters.subs.enabled,
+        selectedSubreddits: pd.filters.subs.list.slice(),
+        score: pd.filters.score,
+        date: pd.filters.date,
+        preserveGilded: pd.filters.gilded,
+        preserveSaved: pd.filters.saved,
+        preserveModDistinguished: pd.filters.mod,
+      });
+      if (pd.filters.subs.enabled && pd.filters.subs.list.length === 0) {
+        console.warn(
+          "[PowerDeleteSuite] Subreddit filtering is enabled, but no subreddits were selected."
+        );
+      }
     },
     resetSorts: function () {
       pd.task.paths.sorts = ["new", "hot", "top", "controversial"];
@@ -548,6 +562,9 @@ var pd = {
         return;
       }
       console.log("[PowerDeleteSuite] " + event, details || {});
+    },
+    normalizeSubreddit: function (name) {
+      return String(name || "").trim().toLowerCase();
     },
     modhash: function () {
       if (window.r && window.r.config && window.r.config.modhash) {
@@ -634,11 +651,14 @@ var pd = {
       return { valid: true, reason: "valid" };
     },
     shouldBeActedOn: function (item) {
-      var check = {
+      var normalizedSubreddit = pd.helpers.normalizeSubreddit(
+          item.data.subreddit
+        ),
+        check = {
         subs:
           !pd.filters.subs.enabled ||
           (pd.filters.subs.enabled &&
-            $.inArray(item.data.subreddit, pd.filters.subs.list) >= 0),
+            $.inArray(normalizedSubreddit, pd.filters.subs.list) >= 0),
         gold: !(pd.filters.gilded && item.data.gilded == 1),
         saved: !(pd.filters.saved && item.data.saved == true),
         mod: !(pd.filters.mod && item.data.distinguished != null),
@@ -670,6 +690,8 @@ var pd = {
         id: item.data.name,
         kind: item.kind,
         subreddit: item.data.subreddit,
+        normalizedSubreddit: normalizedSubreddit,
+        selectedSubreddits: pd.filters.subs.list.slice(),
         score: item.data.score,
         createdUtc: item.data.created_utc,
         saved: item.data.saved,
