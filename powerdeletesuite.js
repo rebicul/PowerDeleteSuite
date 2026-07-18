@@ -543,6 +543,12 @@ var pd = {
     },
   },
   helpers: {
+    log: function (event, details) {
+      if (!pd.logging) {
+        return;
+      }
+      console.log("[PowerDeleteSuite] " + event, details || {});
+    },
     modhash: function () {
       if (window.r && window.r.config && window.r.config.modhash) {
         return window.r.config.modhash;
@@ -657,6 +663,22 @@ var pd = {
           pd.task.items[0].pdIgnoreReasons = check;
         }
       }
+      var failedChecks = Object.keys(check).filter(function (key) {
+        return !check[key];
+      });
+      pd.helpers.log("filter decision", {
+        id: item.data.name,
+        kind: item.kind,
+        subreddit: item.data.subreddit,
+        score: item.data.score,
+        createdUtc: item.data.created_utc,
+        saved: item.data.saved,
+        gilded: item.data.gilded,
+        distinguished: item.data.distinguished,
+        filterResults: check,
+        ignoredBecause: failedChecks,
+        action: failedChecks.length ? "ignored" : "eligible",
+      });
       return (
         check.subs &&
         check.gold &&
@@ -755,6 +777,14 @@ var pd = {
   setTimeout(function () {
     pd.task.pageCalls++;
 
+    pd.helpers.log("page request", {
+      section: pd.task.paths.sections[0],
+      sort: pd.task.paths.sorts[0],
+      timeframe: pd.task.paths.timeframes[0],
+      after: pd.task.after || null,
+      waitMs: wait,
+    });
+
     $.ajax({
       url: pd.endpoints[pd.task.paths.sections[0]],
       data: {
@@ -776,6 +806,11 @@ var pd = {
       function (resp) {
         if (resp.data) {
           var children = resp.data.children;
+          pd.helpers.log("page response", {
+            section: pd.task.paths.sections[0],
+            itemCount: children.length,
+            after: resp.data.after || null,
+          });
           pd.task.info.donePages++;
 
           if (children.length > 0) {
@@ -804,6 +839,14 @@ var pd = {
         }
       },
       function (jqXHR) {
+        pd.helpers.log("page request failed", {
+          section: pd.task.paths.sections[0],
+          status: jqXHR ? jqXHR.status : null,
+          statusText: jqXHR ? jqXHR.statusText : null,
+          retryAfter: jqXHR
+            ? jqXHR.getResponseHeader("Retry-After")
+            : null,
+        });
         if (jqXHR && jqXHR.status === 429) {
           var retryAfter = parseInt(
             jqXHR.getResponseHeader("Retry-After"),
@@ -864,6 +907,17 @@ var pd = {
             pd.filters.date.gt === true &&
             pd.task.items[0].pdIgnoreReasons &&
             !pd.task.items[0].pdIgnoreReasons.date;
+
+        pd.helpers.log("item action decision", {
+          id: item.data.name,
+          kind: item.kind,
+          subreddit: item.data.subreddit,
+          eligible: shouldBeActedOn,
+          earlyExitNewItems: earlyExitNewItems,
+          editEnabled: pd.task.config.isEditing,
+          removePostsEnabled: pd.task.config.isRemovingPosts,
+          removeCommentsEnabled: pd.task.config.isRemovingComments,
+        });
 
         if (earlyExitNewItems) {
           console.log("Skipping the rest of the things sorted by new");
@@ -959,6 +1013,11 @@ var pd = {
     delete: function (item) {
       setTimeout(() => {
         if (pd.performActions) {
+          pd.helpers.log("delete request", {
+            id: item.data.name,
+            kind: item.kind,
+            subreddit: item.data.subreddit,
+          });
           $.ajax({
             url: "/api/del",
             method: "post",
@@ -971,10 +1030,19 @@ var pd = {
             },
           }).then(
             function () {
+              pd.helpers.log("delete succeeded", {
+                id: item.data.name,
+              });
               pd.task.items[0].pdDeleted = true;
               pd.actions.children.handleSingle();
             },
             function (jqXHR, textStatus, errorThrown) {
+              pd.helpers.log("delete failed", {
+                id: item.data.name,
+                status: jqXHR ? jqXHR.status : null,
+                textStatus: textStatus,
+                error: errorThrown,
+              });
               pd.task.info.errors++;
               if (
                 confirm(
@@ -1003,6 +1071,11 @@ var pd = {
         if (pd.performActions) {
           var editString = pd.task.config.editText ||
             pd.editStrings[Math.floor(Math.random() * pd.editStrings.length)];
+          pd.helpers.log("edit request", {
+            id: item.data.name,
+            kind: item.kind,
+            subreddit: item.data.subreddit,
+          });
           $.ajax({
             url: "/api/editusertext",
             method: "post",
@@ -1018,10 +1091,19 @@ var pd = {
             },
           }).then(
             function () {
+              pd.helpers.log("edit succeeded", {
+                id: item.data.name,
+              });
               pd.task.items[0].pdEdited = true;
               pd.actions.children.handleSingle();
             },
             function (jqXHR, textStatus, errorThrown) {
+              pd.helpers.log("edit failed", {
+                id: item.data.name,
+                status: jqXHR ? jqXHR.status : null,
+                textStatus: textStatus,
+                error: errorThrown,
+              });
               pd.task.info.errors++;
               if (
                 !confirm(
@@ -1203,6 +1285,7 @@ var pd = {
     return true;
   },
   performActions: true,
+  logging: true,
   debugging: false,
 };
 pd.init();
